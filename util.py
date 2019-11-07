@@ -18,12 +18,12 @@ def move_boxes_to_car_space(boxes, ego_pose):
     """
     translation = -np.array(ego_pose['translation'])
     rotation = Quaternion(ego_pose['rotation']).inverse
-    
+
     for box in boxes:
         # Bring box to car space
         box.translate(translation)
         box.rotate(rotation)
-        
+
 def scale_boxes(boxes, factor):
     """
     Note: mutates input boxes
@@ -39,7 +39,7 @@ def draw_boxes(im, voxel_size, boxes, classes, z_offset=0.0):
         corners_voxel = corners_voxel[:,:2] # Drop z coord
 
         class_color = classes.index(box.name) + 1
-        
+
         if class_color == 0:
             raise Exception("Unknown class: {}".format(box.name))
 
@@ -47,35 +47,40 @@ def draw_boxes(im, voxel_size, boxes, classes, z_offset=0.0):
 
 
 class BEVImageDataset(torch.utils.data.Dataset):
-    def __init__(self, sample_token,test_data_folder):
-
-        self.sample_token = sample_token
-        self.test_data_folder = test_data_folder
+    def __init__(self, sample_tokens, data_folder, is_train=True):
+        self.is_train = is_train
+        self.sample_tokens = sample_tokens
+        self.data_folder = data_folder
 
     def __len__(self):
-        return len(self.sample_token)
+        return len(self.sample_tokens)
 
     def __getitem__(self, idx):
-        sample_token = self.sample_token[idx]
-        
-#         sample_token = input_filepath.split("/")[-1].replace("_input.png","")
-        
-        input_filepath = os.path.join(self.test_data_folder,f"{sample_token}_input.png")
+        sample_token = self.sample_tokens[idx]
 
-        map_filepath = os.path.join(self.test_data_folder,f"{sample_token}_map.png")
-        
-        
+        # Get file path, assuming data already preprocessed and stored in data_folder
+        input_filepath = os.path.join(self.data_folder,f"{sample_token}_input.png")
+        map_filepath = os.path.join(self.data_folder,f"{sample_token}_map.png")
+
+        target = None
+        if self.is_train:
+            target_filepath = os.path.join(self.data_folder,f"{sample_token}_target.png")
+            target = cv2.imread(target_filepath, cv2.IMREAD_UNCHANGED)
+            target = target.astype(np.int64)
+            target = torch.from_numpy(target)
+
         im = cv2.imread(input_filepath, cv2.IMREAD_UNCHANGED)
-        
         map_im = cv2.imread(map_filepath, cv2.IMREAD_UNCHANGED)
-#         print(im.shape,map_im.shape)
+        # Concatenate image and map for network input
         im = np.concatenate((im, map_im), axis=2)
-        
+
         im = im.astype(np.float32)/255
-        
         im = torch.from_numpy(im.transpose(2,0,1))
-        
-        return im, sample_token
+
+        if not self.is_train:
+            return im, sample_token
+        else:
+            return im, target, sample_token
 
 class UNet(nn.Module):
     def __init__(
@@ -200,7 +205,7 @@ class UNetUpBlock(nn.Module):
 class Model:
     def __init__(self, models):
         self.models = models
-    
+
     def __call__(self, x):
         res = []
         x = x.cuda()
@@ -215,7 +220,7 @@ class Model:
 
 def get_unet_model(in_channels=6, num_output_classes=2):
     model = UNet(in_channels=in_channels, n_classes=num_output_classes, wf=5, depth=4, padding=True, up_mode='upsample')
-    
+
     # Optional, for multi GPU training and inference
     model = nn.DataParallel(model)
     return model
@@ -244,7 +249,7 @@ def box_in_image(box, intrinsic, image_size) -> bool:
     return any(visible) and all(in_front)
 
 
-def viz_unet(sample_token,boxes): 
+def viz_unet(sample_token,boxes):
 
     sample = level5data.get("sample", sample_token)
 
@@ -259,7 +264,7 @@ def viz_unet(sample_token,boxes):
 
     data = Image.open(data_path)
     _, axis = plt.subplots(1, 1, figsize=(9, 9))
-    
+
     for i,box in enumerate(boxes):
 
         # Move box to ego vehicle coord system
@@ -270,7 +275,7 @@ def viz_unet(sample_token,boxes):
         box.translate(-np.array(calibrated_sensor["translation"]))
         box.rotate(Quaternion(calibrated_sensor["rotation"]).inverse)
 
-        if box_in_image(box,camera_intrinsic,np.array(data).shape):            
+        if box_in_image(box,camera_intrinsic,np.array(data).shape):
             box.render(axis,camera_intrinsic,normalize=True)
 
     axis.imshow(data)
@@ -286,30 +291,30 @@ def calc_detection_box(prediction_opened,class_probability):
     sample_boxes = []
     sample_detection_scores = []
     sample_detection_classes = []
-    
-    contours, hierarchy = cv2.findContours(prediction_opened, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
-    
+
+    contours, hierarchy = cv2.findContours(prediction_opened, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
     for cnt in contours:
         rect = cv2.minAreaRect(cnt)
         box = cv2.boxPoints(rect)
-        
+
         # Let's take the center pixel value as the confidence value
         box_center_index = np.int0(np.mean(box, axis=0))
-        
+
         for class_index in range(len(classes)):
             box_center_value = class_probability[class_index+1, box_center_index[1], box_center_index[0]]
-            
+
             # Let's remove candidates with very low probability
             if box_center_value < 0.01:
                 continue
-            
+
             box_center_class = classes[class_index]
 
             box_detection_score = box_center_value
             sample_detection_classes.append(box_center_class)
             sample_detection_scores.append(box_detection_score)
             sample_boxes.append(box)
-            
+
     return np.array(sample_boxes),sample_detection_scores,sample_detection_classes
 
 
@@ -317,15 +322,15 @@ def create_transformation_matrix_to_voxel_space(shape, voxel_size, offset):
     """
     Constructs a transformation matrix given an output voxel shape such that (0,0,0) ends up in the center.
     Voxel_size defines how large every voxel is in world coordinate, (1,1,1) would be the same as Minecraft voxels.
-    
+
     An offset per axis in world coordinates (metric) can be provided, this is useful for Z (up-down) in lidar points.
     """
-    
+
     shape, voxel_size, offset = np.array(shape), np.array(voxel_size), np.array(offset)
-    
+
     tm = np.eye(4, dtype=np.float32)
     translation = shape/2 + offset/voxel_size
-    
+
     tm = tm * np.array(np.hstack((1/voxel_size, [1])))
     tm[:3, 3] = np.transpose(translation)
     return tm
@@ -342,7 +347,7 @@ def transform_points(points, transf_matrix):
 def car_to_voxel_coords(points, shape, voxel_size, z_offset=0):
     if len(shape) != 3:
         raise Exception("Voxel volume shape should be 3 dimensions (x,y,z)")
-        
+
     if len(points.shape) != 2 or points.shape[0] not in [3, 4]:
         raise Exception("Input points should be (3,N) or (4,N) in shape, found {}".format(points.shape))
 
@@ -355,18 +360,18 @@ def create_voxel_pointcloud(points, shape, voxel_size=(0.5,0.5,1), z_offset=0):
     points_voxel_coords = car_to_voxel_coords(points.copy(), shape, voxel_size, z_offset)
     points_voxel_coords = points_voxel_coords[:3].transpose(1,0)
     points_voxel_coords = np.int0(points_voxel_coords)
-    
+
     bev = np.zeros(shape, dtype=np.float32)
     bev_shape = np.array(shape)
 
     within_bounds = (np.all(points_voxel_coords >= 0, axis=1) * np.all(points_voxel_coords < bev_shape, axis=1))
-    
+
     points_voxel_coords = points_voxel_coords[within_bounds]
     coord, count = np.unique(points_voxel_coords, axis=0, return_counts=True)
-        
+
     # Note X and Y are flipped:
     bev[coord[:,1], coord[:,0], coord[:,2]] = count
-    
+
     return bev
 
 def normalize_voxel_intensities(bev, max_intensity=16):
@@ -376,12 +381,12 @@ class box3d:
     """Data class used during detection evaluation. Can be a prediction or ground truth."""
 
     def __init__(self, x, y, z, xl, yl, zl, r):
-        
 
-        
+
+
 
         # Assign.
-        
+
 
         self.volume = xl * yl * zl
         self.r = r
