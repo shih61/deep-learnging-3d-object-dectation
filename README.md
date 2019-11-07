@@ -1,10 +1,19 @@
 # Lyft 3D Object Detection for Autonomous Vehicles
 This project contains the source code for [Lyft 3D Object Detection for Autonomous Vehicles competition(Lyft 3D Object Detection for Autonomous Vehicles) on Kaggle.
 
-## BaselineUNetModel-eva.ipynb
+## util.py
+This file contains many utility functions for working with the provided data set of LiDAR, camera images, and semantic maps.  Additionally, this file contains the BEV data loader to load pre-trained data to feed into networks.
+
+## DataPreprocessing.ipynb
+This notebook contains the code and logic for pre-processing the training data.  Since the data provided is in multiple forms: LiDAR, camera images, and semantic maps, we preprocess the data prior to training. We first transform the LiDAR point cloud from the sensor’s reference frame to the car’s reference frame. Next, we voxelize the LiDAR points to project them into a 3-dimensional space. Our final training image is a bird’s eye view (top down) projection of the world around the car. Figure 1 shows an example of this. During training, the data loader concatenates the bird’s eye image representation with the semantic map. (Note: This data processing is used by the Baseline U-Net model; we are still imple- menting preprocessing for the PSPNet model).
+
+## BaselineUNetModel.ipynb
 This notebook is our baseline model for the competition.  It is an implementation of the U-Net Model (Olaf, et. al. 2015). It loads the weights pre-trained by the author, and makes predictions based on validation dataset, which is split by train dataset with about 70/30 ratio. Then, the notebook generates a CSV file called `baseline_val_pred.csv` which fits the submission format of the competition.  
 
 **Attribution:** This notebook is borrowed from https://www.kaggle.com/meaninglesslives/lyft3d-inference-prediction-visualization, and customized to for our environment.
+
+### radam-optimizer.py
+This is an efficient Adam optimizer which has a lower memory footprint, and allows us to train on the large dataset.
 
 ## PSPNet_ResNet.ipynb
 This notebook is an implementation of the Pyramid Scene Parsing Network (Zhao, et. al. 2017).  In addition, it uses the RestNET pre-trained weights to achieve use transfer learning and achieve higher predictions.  This is currently in progress, and it is based on an existing PSPNet model implementation (Trusov).
