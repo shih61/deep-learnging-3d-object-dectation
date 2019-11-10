@@ -47,10 +47,11 @@ def draw_boxes(im, voxel_size, boxes, classes, z_offset=0.0):
 
 
 class BEVImageDataset(torch.utils.data.Dataset):
-    def __init__(self, sample_tokens, data_folder, is_train=True):
+    def __init__(self, sample_tokens, data_folder, is_train=True, ignore_map=True):
         self.is_train = is_train
         self.sample_tokens = sample_tokens
         self.data_folder = data_folder
+        self.ignore_map = ignore_map
 
     def __len__(self):
         return len(self.sample_tokens)
@@ -70,9 +71,11 @@ class BEVImageDataset(torch.utils.data.Dataset):
             target = torch.from_numpy(target)
 
         im = cv2.imread(input_filepath, cv2.IMREAD_UNCHANGED)
-        map_im = cv2.imread(map_filepath, cv2.IMREAD_UNCHANGED)
-        # Concatenate image and map for network input
-        im = np.concatenate((im, map_im), axis=2)
+
+        if not self.ignore_map:
+            map_im = cv2.imread(map_filepath, cv2.IMREAD_UNCHANGED)
+            # Concatenate image and map for network input
+            im = np.concatenate((im, map_im), axis=2)
 
         im = im.astype(np.float32)/255
         im = torch.from_numpy(im.transpose(2,0,1))
