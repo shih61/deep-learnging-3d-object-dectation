@@ -146,8 +146,8 @@ def viz_unet(sample_token,boxes):
 
 
 
-def calc_detection_box(prediction_opened,class_probability):
-
+def calc_detection_box(prediction_opened,class_probability, thd=0.01):
+    
     sample_boxes = []
     sample_detection_scores = []
     sample_detection_classes = []
@@ -165,7 +165,7 @@ def calc_detection_box(prediction_opened,class_probability):
             box_center_value = class_probability[class_index+1, box_center_index[1], box_center_index[0]]
 
             # Let's remove candidates with very low probability
-            if box_center_value < 0.01:
+            if box_center_value < thd:
                 continue
 
             box_center_class = classes[class_index]
