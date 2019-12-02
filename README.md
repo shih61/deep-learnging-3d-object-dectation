@@ -1,6 +1,13 @@
 # Lyft 3D Object Detection for Autonomous Vehicles
 This project contains the source code for [Lyft 3D Object Detection for Autonomous Vehicles competition(Lyft 3D Object Detection for Autonomous Vehicles) on Kaggle.
 
+## Trained Models
+This folder contains the models we've trained and used.
+1. UnetEnsemble15Epoch.pth - This model is used for U-Net Baseline and in the PSPNet-UNET Ensemble.
+2. UnetEnsemble13Epoch.pth, UnetEnsemble14Epoch.pth, UnetEnsemble15Epoch.pth - These models are used in U-NET Ensemble
+
+*Due to GitHub upload size restrictions, we could not upload the PSPNet trained model.  We tried compression, but the file size surpassed the upload limits.*
+
 ## util.py
 This file contains many utility functions for working with the provided data set of LiDAR, camera images, and semantic maps.  Additionally, this file contains the BEV data loader to load pre-trained data to feed into networks.
 
