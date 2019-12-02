@@ -16,7 +16,10 @@ This notebook is our baseline model for the competition.  It is an implementatio
 This is an efficient Adam optimizer which has a lower memory footprint, and allows us to train on the large dataset.
 
 ## PSPNet_ResNet.ipynb
-This notebook is an implementation of the Pyramid Scene Parsing Network (Zhao, et. al. 2017).  In addition, it uses the RestNET pre-trained weights to achieve use transfer learning and achieve higher predictions.  This is currently in progress, and it is based on an existing PSPNet model implementation (Trusov).
+This notebook is an implementation of the Pyramid Scene Parsing Network (Zhao, et. al. 2017).  In addition, it uses the ResNET pre-trained weights to achieve use transfer learning and achieve higher predictions.  This implementatino is based on Trusov's PSPNet model implementation (Trusov).
+
+## PSPNet_ResNet_UNet_ensemble
+This notebook is an implementation of the Ensemble of PSPNet and UNet model.  The PSPNet model uses ResNET pre-trained weights to use transfer learning.
 
 ## EvaluatePredictionAndGroundTruthScores.ipynb
 This notebook compares the predict output and groud truth table and calculates the average score which is defined in the evaluation metrics in the report. Make sure that `baseline_val_pred.csv` and `val_gt.csv` exist and the paths to these two csv file are configured correctly.
